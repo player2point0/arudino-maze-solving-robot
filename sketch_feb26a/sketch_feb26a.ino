@@ -42,7 +42,6 @@ void setup()
 
 void loop() 
 {
-  followWall();
   mazeSolve();
 }
 
@@ -64,7 +63,9 @@ void mazeSolve()
 
   else if (front > 20)
   {
-    driveFoward(normalSpeed, 50);
+    //equilivant to drive forward
+    followWall();//will only move a tiny bit, could instead call the method n times
+    //driveFoward(normalSpeed, 50);
   }
 
   else
