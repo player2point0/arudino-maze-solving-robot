@@ -19,13 +19,9 @@ int slowSpeed = 135;
 int normalSpeed = 190;
 int leftMotorMulti = 1;
 int rightMotorMulti = 1;
-int updateDelay = 10;
+int updateDelay = 15;
 
 //add a robot length var
-
-//create a calibrate function for the motor
-//drive a set distance and measure offset from a straight line
-//use trig to calc angle and figure difference in motor power
 
 void setup() 
 {
@@ -55,24 +51,31 @@ void mazeSolve()
   if(wallLeft == 1)
   {
     //pivot left
-    pivotRobot(-90);
+    sprintFoward(5);
     delay(updateDelay);
-    //drive foward one robot length
-    driveFoward(normalSpeed, 200);
+    pivotRobot(-70);
+    delay(updateDelay);
+    sprintFoward(20);
   }
 
   else if (front > 20)
   {
-    //equilivant to drive forward
-    followWall();//will only move a tiny bit, could instead call the method n times
-    //driveFoward(normalSpeed, 50);
+    wallFollowFoward(2);
   }
 
   else
   {
-    //dead end
     //rotate right 
     rotateRobot(90);
+    
+    //check if dead end using front sensor
+    delay(updateDelay);
+    front = frontSensor.read();
+    
+    if (front > 20)
+    {
+      sprintFoward(20);
+    }
   }
 
   delay(updateDelay);
@@ -107,7 +110,6 @@ void followWall()
   if(distanceLeft > 25)
   {
     //go left
-    rotateRobot(-1);
     driveLeftMotor(slowSpeed);
     driveRightMotor(normalSpeed);
     delay(10);
@@ -117,7 +119,6 @@ void followWall()
   else if(distanceLeft < 15)
   {
     //go right
-    rotateRobot(1);
     driveLeftMotor(normalSpeed);
     driveRightMotor(slowSpeed);
     delay(10);
@@ -126,10 +127,44 @@ void followWall()
 
   else 
   {
-    driveFoward(normalSpeed, 10);
+    driveRightMotor(normalSpeed);
+    driveLeftMotor(normalSpeed);
+    delay(10);
+    stopMotors();
   }
   
   delay(updateDelay);
+}
+
+void sprintFoward(int callCount)
+{
+  
+  for(int i = 0;i<callCount;i++)
+  {
+      int front = frontSensor.read();
+
+      if (front > 20)
+      {
+        driveRightMotor(normalSpeed);
+        driveLeftMotor(normalSpeed);
+        delay(10);       
+      }
+
+      else break;
+      
+      stopMotors();    
+  }
+}
+
+void wallFollowFoward(int callCount)
+{
+  //could change so the robot moves one bodyLenght
+  //could change callCount to bodyLength
+  
+  for(int i = 0;i<callCount;i++)
+  {
+    followWall();  
+  }
 }
 
 void rotateRobot(float angle)
@@ -151,14 +186,6 @@ void rotateRobot(float angle)
   
   delay(abs(fullCircle * percentage));
   stopMotors();  
-}
-
-void driveFoward(int speed, int duration)
-{
-  driveRightMotor(speed);
-  driveLeftMotor(speed);
-  delay(duration);
-  stopMotors();
 }
 
 void stopMotors()
