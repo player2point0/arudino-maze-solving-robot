@@ -21,7 +21,6 @@ Encoder leftEncoder(3, 4);
 Encoder rightEncoder(2, 10);
 volatile long leftEncoderStore, rightEncoderStore;
 int rightMotorSpeed, leftMotorSpeed;
-
 bool flag = false;
 
 int slowSpeed = 135;
