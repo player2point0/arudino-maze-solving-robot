@@ -1,3 +1,5 @@
+#include <Encoder.h>
+
 //Motor pins
 #define R_MOTOR_ENABLE 5
 #define L_MOTOR_ENABLE 6
@@ -15,13 +17,18 @@ Ultrasonic frontSensor(A5, A4, 10000UL);
 //infrared
 #define IR_SENSOR A0
 
+Encoder leftEncoder(3, 4);
+Encoder rightEncoder(2, 10);
+volatile long leftEncoderStore, rightEncoderStore;
+int rightMotorSpeed, leftMotorSpeed;
+
+bool flag = false;
+
 int slowSpeed = 135;
 int normalSpeed = 190;
 int leftMotorMulti = 1;
 int rightMotorMulti = 1;
 int updateDelay = 15;
-
-//add a robot length var
 
 void setup() 
 {
@@ -34,7 +41,43 @@ void setup()
   pinMode(L_MOTOR_ENABLE, OUTPUT);
   pinMode(R_MOTOR_ENABLE, OUTPUT);
   pinMode(IR_SENSOR, INPUT);
+
+  //https://learn.adafruit.com/multi-tasking-the-arduino-part-2/timers
+  //https://www.teachmemicro.com/arduino-timer-interrupt-tutorial/
+  //https://arduino.stackexchange.com/questions/30968/how-do-interrupts-work-on-the-arduino-uno-and-similar-boards
+  OCR0A = 0xAF; // set the compare register A for timer0
+  TIMSK0 |= _BV(OCIE0A);  //enable the compare interrupt A for timer 0
 }
+
+// interrupt service routine called when timer0 compare A interrupt flag set
+//called on timer0 so every 1ms
+ISR(TIMER0_COMPA_vect) 
+{
+  if (flag) {
+    //leftMotor
+    long encoderReading = leftEncoder.read();
+    int measuredSpeed = abs(leftEncoderStore - encoderReading) * 15;//in rpm
+    leftEncoderStore = encoderReading;
+    if (measuredSpeed > leftMotorSpeed)
+      digitalWrite(L_MOTOR_ENABLE, LOW);
+    else
+      digitalWrite(L_MOTOR_ENABLE, HIGH);
+  }
+  
+  else
+  {
+    //rightMotor
+    long encoderReading = rightEncoder.read();
+    long measuredSpeed = abs(rightEncoderStore - encoderReading) * 15;//in rpm
+    rightEncoderStore = encoderReading;
+    if (measuredSpeed > rightMotorSpeed)
+      digitalWrite(R_MOTOR_ENABLE, LOW);
+    else
+      digitalWrite(R_MOTOR_ENABLE, HIGH);  
+  }
+
+  flag = !flag;
+} 
 
 void loop() 
 {
