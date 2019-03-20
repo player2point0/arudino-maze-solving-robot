@@ -1,5 +1,3 @@
-#include <Encoder.h>
-
 //Motor pins
 #define R_MOTOR_ENABLE 5
 #define L_MOTOR_ENABLE 6
@@ -16,17 +14,16 @@ Ultrasonic leftSensor(12, 10, 10000UL);
 Ultrasonic frontSensor(A5, A4, 10000UL);
 //infrared
 #define IR_SENSOR A0
-
+//encoders
+#include <Encoder.h>
 Encoder leftEncoder(3, 4);
 Encoder rightEncoder(2, 10);
 volatile long leftEncoderStore, rightEncoderStore;
 int rightMotorSpeed, leftMotorSpeed;
 bool flag = false;
 
-int slowSpeed = 135;
-int normalSpeed = 190;
-int leftMotorMulti = 1;
-int rightMotorMulti = 1;
+int slowSpeed = -235;
+int normalSpeed = -390;
 int updateDelay = 15;
 
 void setup() 
@@ -123,28 +120,6 @@ void mazeSolve()
   delay(updateDelay);
 }
 
-void pivotRobot(float angle)
-{
-  float fullCircle = 1500;
-  float percentage = angle / 360;
-
-  if(angle < 0)
-  {
-    //left
-    driveRightMotor(slowSpeed);
-  }
-
-  else
-  { 
-    //right
-    driveLeftMotor(slowSpeed); 
-  }
-  
-  delay(abs(fullCircle * percentage));
-  
-  stopMotors();  
-}
-
 void followWall()
 {
   int distanceLeft = leftSensor.read();
@@ -180,7 +155,6 @@ void followWall()
 
 void sprintFoward(int callCount)
 {
-  
   for(int i = 0;i<callCount;i++)
   {
       int front = frontSensor.read();
@@ -230,67 +204,86 @@ void rotateRobot(float angle)
   stopMotors();  
 }
 
+void pivotRobot(float angle)
+{
+  float fullCircle = 1500;
+  float percentage = angle / 360;
+
+  if(angle < 0)
+  {
+    //left
+    driveRightMotor(slowSpeed);
+  }
+
+  else
+  { 
+    //right
+    driveLeftMotor(slowSpeed); 
+  }
+  
+  delay(abs(fullCircle * percentage));
+  
+  stopMotors();  
+}
+
 void stopMotors()
 {
   driveRightMotor(0);
   driveLeftMotor(0);
 }
 
-void driveRightMotor(int speed)
-{
-  speed *= rightMotorMulti;
-  
-  if(abs(speed) < MIN_MOTOR_SPEED)
-  {
-    analogWrite(R_MOTOR_ENABLE, 0);
-    digitalWrite(R_MOTOR_1, LOW);
-    digitalWrite(R_MOTOR_2, LOW);
-  }
-
-  else
-  {
-    analogWrite(R_MOTOR_ENABLE, abs(speed));
-    
-    if(speed > 0)
-    {
-      //drive foward
-      digitalWrite(R_MOTOR_1, LOW);
-      digitalWrite(R_MOTOR_2, HIGH);
-    }
-    else
-    {
-      //drive in reverse
-      digitalWrite(R_MOTOR_1, HIGH);
-      digitalWrite(R_MOTOR_2, LOW);
-    }
-  }
-}
-
+//MOTOR DRIVES
 void driveLeftMotor(int speed)
 {
-  speed *= leftMotorMulti;
-  
-  if(abs(speed) < MIN_MOTOR_SPEED)
-  {
-    analogWrite(L_MOTOR_ENABLE, 0);
+  noInterrupts();
+  leftMotorSpeed = abs(speed);
+  interrupts();
+
+  if (leftMotorSpeed < MIN_MOTOR_SPEED) 
+  {  
+    //analogWrite(L_MOTOR_ENABLE, 0);
     digitalWrite(L_MOTOR_1, LOW);
-    digitalWrite(L_MOTOR_2, LOW);
+    digitalWrite(L_MOTOR_2, LOW);  
   }
-  else
+  else 
   {
-    analogWrite(L_MOTOR_ENABLE, abs(speed));
-    
-    if(speed > 0)
+    //analogWrite(L_MOTOR_ENABLE, abs(speed));
+    if (speed > 0)
     {
-      //drive foward
       digitalWrite(L_MOTOR_1, HIGH);
       digitalWrite(L_MOTOR_2, LOW);
     }
     else
     {
-      //drive in reverse
       digitalWrite(L_MOTOR_1, LOW);
       digitalWrite(L_MOTOR_2, HIGH);
+    }
+  }
+}
+void driveRightMotor(int speed)
+{
+  noInterrupts();
+  rightMotorSpeed = abs(speed);
+  interrupts();
+
+  if (rightMotorSpeed < MIN_MOTOR_SPEED) 
+  { 
+    //analogWrite(R_MOTOR_ENABLE, 0);
+    digitalWrite(R_MOTOR_1, LOW);
+    digitalWrite(R_MOTOR_2, LOW);  
+  }
+  else 
+  {
+    //analogWrite(R_MOTOR_ENABLE, abs(speed));
+    if (speed > 0)
+    {
+      digitalWrite(R_MOTOR_1, LOW);
+      digitalWrite(R_MOTOR_2, HIGH);
+    }
+    else 
+    {
+      digitalWrite(R_MOTOR_1, HIGH);
+      digitalWrite(R_MOTOR_2, LOW);
     }
   }
 }
