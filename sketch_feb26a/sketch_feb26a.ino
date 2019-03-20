@@ -19,7 +19,7 @@ Ultrasonic frontSensor(A5, A4, 10000UL);
 Encoder leftEncoder(3, 4);
 Encoder rightEncoder(2, 10);
 volatile long leftEncoderStore, rightEncoderStore;
-int rightMotorSpeed, leftMotorSpeed;
+volatile int rightMotorSpeed, leftMotorSpeed;
 bool flag = false;
 
 int slowSpeed = -235;
