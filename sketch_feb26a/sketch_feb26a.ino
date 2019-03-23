@@ -1,35 +1,35 @@
-//Motor pins
-#define R_MOTOR_ENABLE 5
-#define L_MOTOR_ENABLE 6
-#define R_MOTOR_1 7
-#define R_MOTOR_2 8
-#define L_MOTOR_1 9
-#define L_MOTOR_2 11
-//motor speed range
-#define MAX_MOTOR_SPEED 255
-#define MIN_MOTOR_SPEED 130
+#include <Encoder.h>
+
 //ultrasonic
 #include <Ultrasonic.h>
 Ultrasonic leftSensor(12, 10, 10000UL);
 Ultrasonic frontSensor(A5, A4, 10000UL);
 //infrared
 #define IR_SENSOR A0
-//encoders
-#include <Encoder.h>
+
+//Motor pins
+#define L_MOTOR_ENABLE 6
+#define R_MOTOR_ENABLE 5
+#define L_MOTOR_1 11
+#define L_MOTOR_2 9
+#define R_MOTOR_1 8
+#define R_MOTOR_2 7
+#define MIN_MOTOR_SPEED 1
+#define MAX_MOTOR_SPEED 255
+
 Encoder leftEncoder(3, 4);
 Encoder rightEncoder(2, 10);
 volatile long leftEncoderStore, rightEncoderStore;
 volatile int rightMotorSpeed, leftMotorSpeed;
 bool flag = false;
 
-int slowSpeed = -235;
-int normalSpeed = -390;
-int updateDelay = 15;
+int updateDelay = 10;
+int slowSpeed = 20;
+int normalSpeed = 60;
 
-void setup() 
-{
+void setup() {
   Serial.begin(9600);
-  //pin setup
+  //setup motors
   pinMode(L_MOTOR_1, OUTPUT);
   pinMode(L_MOTOR_2, OUTPUT);
   pinMode(R_MOTOR_1, OUTPUT);
@@ -37,13 +37,14 @@ void setup()
   pinMode(L_MOTOR_ENABLE, OUTPUT);
   pinMode(R_MOTOR_ENABLE, OUTPUT);
   pinMode(IR_SENSOR, INPUT);
-
+  
   //https://learn.adafruit.com/multi-tasking-the-arduino-part-2/timers
   //https://www.teachmemicro.com/arduino-timer-interrupt-tutorial/
   //https://arduino.stackexchange.com/questions/30968/how-do-interrupts-work-on-the-arduino-uno-and-similar-boards
   OCR0A = 0xAF; // set the compare register A for timer0
-  TIMSK0 |= _BV(OCIE0A);  //enable the compare interrupt A for timer 0
+  TIMSK0 |= _BV(OCIE0A);  //enable the compare interrupt A for timer 0  
 }
+
 
 // interrupt service routine called when timer0 compare A interrupt flag set
 //called on timer0 so every 1ms
@@ -77,7 +78,9 @@ ISR(TIMER0_COMPA_vect)
 
 void loop() 
 {
-  mazeSolve();
+  //bruteForce();
+  //mazeSolve();
+  followWall();
 }
 
 void mazeSolve()
@@ -90,11 +93,11 @@ void mazeSolve()
   if(wallLeft == 1)
   {
     //pivot left
-    sprintFoward(5);
+    //sprintFoward(5);
     delay(updateDelay);
     pivotRobot(-70);
     delay(updateDelay);
-    sprintFoward(20);
+    //sprintFoward(20);
   }
 
   else if (front > 20)
@@ -105,7 +108,7 @@ void mazeSolve()
   else
   {
     //rotate right 
-    rotateRobot(90);
+    rotateRobot(90, 50);
     
     //check if dead end using front sensor
     delay(updateDelay);
@@ -113,11 +116,19 @@ void mazeSolve()
     
     if (front > 20)
     {
-      sprintFoward(20);
+      sprintFoward(100, 1000);
     }
   }
 
   delay(updateDelay);
+}
+
+void bruteForce()
+{
+  sprintFoward(1000, 10000);
+  delay(200);
+  rotateRobot(90, 50);
+  delay(200); 
 }
 
 void followWall()
@@ -153,23 +164,28 @@ void followWall()
   delay(updateDelay);
 }
 
-void sprintFoward(int callCount)
+void sprintFoward(float driveSpeed, float distance)
 {
-  for(int i = 0;i<callCount;i++)
+  driveLeftMotor(driveSpeed);
+  driveRightMotor(driveSpeed);
+
+  long startDistance = (abs(leftEncoder.read()) + abs(rightEncoder.read())) / 2;
+  long totalDistance = 0;
+  int front = 100;
+
+  while(totalDistance < distance && front > 20)
   {
-      int front = frontSensor.read();
+      //record distance travelled
+      float avgDistance = (abs(leftEncoder.read()) + abs(rightEncoder.read())) / 2;
 
-      if (front > 20)
-      {
-        driveRightMotor(normalSpeed);
-        driveLeftMotor(normalSpeed);
-        delay(10);       
-      }
+      totalDistance = avgDistance - startDistance;
 
-      else break;
-      
-      stopMotors();    
+      front = frontSensor.read();
+
+      delay(10);
   }
+
+  stopMotors();
 }
 
 void wallFollowFoward(int callCount)
@@ -183,25 +199,51 @@ void wallFollowFoward(int callCount)
   }
 }
 
-void rotateRobot(float angle)
+void acceleratedRotation(float angle, float driveSpeed)
 {
-  float fullCircle = 800;
-  float percentage = angle / 360;
+  float accelerationAngle = 30;
+  float decelerationAngle = 30;
+  float accelerationSpeed = driveSpeed * 0.5;
+  float decelerationSpeed = driveSpeed * 0.5;
+
+  if((accelerationAngle + decelerationAngle) >= angle)
+  {
+    rotateRobot(angle, accelerationSpeed);  
+  }
+  
+  rotateRobot(accelerationAngle, accelerationSpeed);
+  delay(1);
+  rotateRobot(angle - (accelerationAngle + decelerationAngle), driveSpeed);
+  delay(1);
+  rotateRobot(accelerationAngle, decelerationSpeed);
+}
+
+void rotateRobot(float angle, int driveSpeed)
+{
+  float fullTurnDistance = 6000;
+  float percentage = abs(angle / 360);
+  float turnDistance = 0;
+  float intialDistance = (abs(leftEncoder.read()) + abs(rightEncoder.read())) / 2;
   
   if(angle < 0)
   {
-    driveRightMotor(slowSpeed);
-    driveLeftMotor(-slowSpeed);
+    driveRightMotor(driveSpeed);
+    driveLeftMotor(-driveSpeed);
   }
-
   else
   { 
-    driveRightMotor(-slowSpeed);
-    driveLeftMotor(slowSpeed); 
+    driveRightMotor(-driveSpeed);
+    driveLeftMotor(driveSpeed); 
+  }
+
+  while(turnDistance < (fullTurnDistance * percentage))
+  {
+      float avgDistance = (abs(leftEncoder.read()) + abs(rightEncoder.read())) / 2;
+
+      turnDistance = (avgDistance - intialDistance);
   }
   
-  delay(abs(fullCircle * percentage));
-  stopMotors();  
+  stopMotors();
 }
 
 void pivotRobot(float angle)
