@@ -2,10 +2,8 @@
 
 //ultrasonic
 #include <Ultrasonic.h>
-Ultrasonic leftSensor(12, 10, 10000UL);
+Ultrasonic leftSensor(A3, A2, 10000UL);
 Ultrasonic frontSensor(A5, A4, 10000UL);
-//infrared
-#define IR_SENSOR A0
 
 //Motor pins
 #define L_MOTOR_ENABLE 6
@@ -23,10 +21,6 @@ volatile long leftEncoderStore, rightEncoderStore;
 volatile int rightMotorSpeed, leftMotorSpeed;
 bool flag = false;
 
-int updateDelay = 10;
-int slowSpeed = 20;
-int normalSpeed = 60;
-
 void setup() {
   Serial.begin(9600);
   //setup motors
@@ -36,7 +30,6 @@ void setup() {
   pinMode(R_MOTOR_2, OUTPUT);
   pinMode(L_MOTOR_ENABLE, OUTPUT);
   pinMode(R_MOTOR_ENABLE, OUTPUT);
-  pinMode(IR_SENSOR, INPUT);
   
   //https://learn.adafruit.com/multi-tasking-the-arduino-part-2/timers
   //https://www.teachmemicro.com/arduino-timer-interrupt-tutorial/
@@ -44,7 +37,6 @@ void setup() {
   OCR0A = 0xAF; // set the compare register A for timer0
   TIMSK0 |= _BV(OCIE0A);  //enable the compare interrupt A for timer 0  
 }
-
 
 // interrupt service routine called when timer0 compare A interrupt flag set
 //called on timer0 so every 1ms
@@ -80,92 +72,60 @@ void loop()
 {
   //bruteForce();
   //mazeSolve();
-  followWall();
+  followLeftWall();
 }
 
-void mazeSolve()
+void followLeftWall()
 {
-  int wallLeft = digitalRead(IR_SENSOR);
-  int front = frontSensor.read();
-  int left = leftSensor.read();
-  
-  //check for no wall left
-  if(wallLeft == 1)
-  {
-    //pivot left
-    //sprintFoward(5);
-    delay(updateDelay);
-    pivotRobot(-70);
-    delay(updateDelay);
-    //sprintFoward(20);
-  }
-
-  else if (front > 20)
-  {
-    wallFollowFoward(2);
-  }
-
-  else
-  {
-    //rotate right 
-    rotateRobot(90, 50);
-    
-    //check if dead end using front sensor
-    delay(updateDelay);
-    front = frontSensor.read();
-    
-    if (front > 20)
-    {
-      sprintFoward(100, 1000);
-    }
-  }
-
-  delay(updateDelay);
-}
-
-void bruteForce()
-{
-  sprintFoward(1000, 10000);
-  delay(200);
-  rotateRobot(90, 50);
-  delay(200); 
-}
-
-void followWall()
-{
+  delay(50);  
   int distanceLeft = leftSensor.read();
+  delay(50);
+  int distanceForward = frontSensor.read();
   
+  int normalSpeed = 160;
+  int mediumSpeed = 120;//normalSpeed / 2;//120
+  int slowSpeed = 70;//normalSpeed / 3;//70
+
   if(distanceLeft > 25)
   {
     //go left
     driveLeftMotor(slowSpeed);
     driveRightMotor(normalSpeed);
-    delay(10);
-    stopMotors();
   }
   
-  else if(distanceLeft < 15)
+  else if(distanceLeft < 22 && distanceLeft > 18)
+  {
+    //slight correction right
+    driveLeftMotor(normalSpeed);
+    driveRightMotor(mediumSpeed);  
+  }
+  
+  else if(distanceLeft < 18 && distanceForward < 18)
+  {
+    stopMotors();
+    delay(50);
+    acceleratedRotation(90, 200);
+    //rotateRobot(90, 50); 
+  }
+
+  else if(distanceLeft < 15 || distanceForward < 30)
   {
     //go right
     driveLeftMotor(normalSpeed);
     driveRightMotor(slowSpeed);
-    delay(10);
-    stopMotors();
   }
 
   else 
   {
-    driveRightMotor(normalSpeed);
+    //sprintForward(normalSpeed, 1000);
     driveLeftMotor(normalSpeed);
-    delay(10);
-    stopMotors();
+    driveRightMotor(normalSpeed);
   }
-  
-  delay(updateDelay);
 }
 
-void sprintFoward(float driveSpeed, float distance)
+void sprintForward(float driveSpeed, float distance)
 {
+  //add acceleration
   driveLeftMotor(driveSpeed);
   driveRightMotor(driveSpeed);
 
@@ -188,17 +148,6 @@ void sprintFoward(float driveSpeed, float distance)
   stopMotors();
 }
 
-void wallFollowFoward(int callCount)
-{
-  //could change so the robot moves one bodyLenght
-  //could change callCount to bodyLength
-  
-  for(int i = 0;i<callCount;i++)
-  {
-    followWall();  
-  }
-}
-
 void acceleratedRotation(float angle, float driveSpeed)
 {
   float accelerationAngle = 30;
@@ -212,19 +161,19 @@ void acceleratedRotation(float angle, float driveSpeed)
   }
   
   rotateRobot(accelerationAngle, accelerationSpeed);
-  delay(1);
+  delay(5);
   rotateRobot(angle - (accelerationAngle + decelerationAngle), driveSpeed);
-  delay(1);
-  rotateRobot(accelerationAngle, decelerationSpeed);
+  delay(5);
+  rotateRobot(decelerationAngle, decelerationSpeed);
 }
 
 void rotateRobot(float angle, int driveSpeed)
 {
   float fullTurnDistance = 6000;
   float percentage = abs(angle / 360);
-  float turnDistance = 0;
-  float intialDistance = (abs(leftEncoder.read()) + abs(rightEncoder.read())) / 2;
-  
+  long turnDistance = 0;
+  long intialDistance = abs(leftEncoder.read());
+ 
   if(angle < 0)
   {
     driveRightMotor(driveSpeed);
@@ -238,34 +187,12 @@ void rotateRobot(float angle, int driveSpeed)
 
   while(turnDistance < (fullTurnDistance * percentage))
   {
-      float avgDistance = (abs(leftEncoder.read()) + abs(rightEncoder.read())) / 2;
+      long avgDistance = abs(leftEncoder.read());
 
-      turnDistance = (avgDistance - intialDistance);
+      turnDistance = abs(avgDistance - intialDistance);
   }
   
   stopMotors();
-}
-
-void pivotRobot(float angle)
-{
-  float fullCircle = 1500;
-  float percentage = angle / 360;
-
-  if(angle < 0)
-  {
-    //left
-    driveRightMotor(slowSpeed);
-  }
-
-  else
-  { 
-    //right
-    driveLeftMotor(slowSpeed); 
-  }
-  
-  delay(abs(fullCircle * percentage));
-  
-  stopMotors();  
 }
 
 void stopMotors()
